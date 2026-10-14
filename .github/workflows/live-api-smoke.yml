@@ -1,0 +1,67 @@
+name: Deployed API Smoke Test
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-public-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify live REST endpoints and Swagger
+        env:
+          BASE_URL: https://algebra-equation-api.onrender.com
+        run: |
+          python3 - <<'PY'
+          import json, os, time, urllib.request, urllib.error
+          base = os.environ["BASE_URL"].rstrip("/")
+          def request(path, payload=None, method=None, attempts=8):
+              data = None if payload is None else json.dumps(payload).encode()
+              req = urllib.request.Request(base + path, data=data, method=method or ("POST" if data is not None else "GET"))
+              if data is not None:
+                  req.add_header("Content-Type", "application/json")
+              for i in range(attempts):
+                  try:
+                      with urllib.request.urlopen(req, timeout=60) as response:
+                          return response.status, response.read()
+                  except urllib.error.HTTPError as exc:
+                      if exc.code in (400, 404) and attempts == 1:
+                          return exc.code, exc.read()
+                      if i == attempts - 1: raise
+                  except Exception:
+                      if i == attempts - 1: raise
+                  time.sleep(10)
+          status, data = request("/api/equations")
+          assert status == 200 and isinstance(json.loads(data)["equations"], list)
+          print("PASS GET /api/equations")
+
+          status, data = request("/v3/api-docs")
+          spec = json.loads(data)
+          assert status == 200 and "/api/equations/store" in spec["paths"]
+          assert "/api/equations/{equationId}/evaluate" in spec["paths"]
+          print("PASS GET /v3/api-docs")
+
+          status, data = request("/swagger-ui/index.html")
+          assert status == 200 and b"swagger" in data.lower()
+          print("PASS GET /swagger-ui/index.html")
+
+          status, data = request("/api/equations/store", {"equation":"3x + 2y - z"})
+          equation_id = json.loads(data)["equationId"]
+          assert status == 201 and equation_id
+          print("PASS POST /api/equations/store (id=" + equation_id + ")")
+
+          status, data = request("/api/equations/" + equation_id + "/evaluate", {"variables":{"x":2,"y":3,"z":1}})
+          result = json.loads(data)["result"]
+          assert status == 200 and abs(result - 11) < 1e-10, result
+          print("PASS POST /api/equations/{id}/evaluate = 11")
+
+          status, data = request("/api/equations/store", {"equation":"x+"}, attempts=1)
+          assert status == 400, status
+          print("PASS validation error HTTP 400")
+
+          status, data = request("/api/equations/999999999/evaluate", {"variables":{}}, attempts=1)
+          assert status == 404, status
+          print("PASS missing equation HTTP 404")
+          PY
