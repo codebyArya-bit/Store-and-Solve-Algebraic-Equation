@@ -4,6 +4,15 @@
 
 A **REST-only** Java 21 Spring Boot API that stores algebraic expressions in **postfix expression trees**, lists them reconstructed from the trees, and evaluates them with supplied variable values. It uses an in-memory store, as required by the assignment.
 
+## Verified public deployment
+
+- **API:** https://algebra-equation-api.onrender.com/api/equations
+- **Swagger UI:** https://algebra-equation-api.onrender.com/swagger-ui/index.html
+- **OpenAPI JSON:** https://algebra-equation-api.onrender.com/v3/api-docs
+- **Production smoke tests:** [GitHub Actions](https://github.com/codebyArya-bit/Store-and-Solve-Algebraic-Equation/actions/workflows/live-api-smoke.yml)
+
+The deployed API has been checked with live GET, POST and error-path requests. Render's free tier may take some time to wake after inactivity. Equations are kept in memory and reset on restart.
+
 ## Run locally
 
 Prerequisites: Java 21 and Maven 3.9+.
